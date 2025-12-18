@@ -17,6 +17,8 @@ pyinstaller ^
 
 '''
 
+# log_viewer.py
+
 import streamlit as st
 import requests
 import math
@@ -25,7 +27,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # ---------------- 상수 ----------------
 PAGE_SIZE = 50
-REFRESH_SEC = 2
+REFRESH_SEC = 10
 
 LOG_CATEGORIES = {
     "System": 0,
@@ -89,6 +91,20 @@ if "render_logs" not in st.session_state:
 if "render_total_count" not in st.session_state:
     st.session_state.render_total_count = 0
 
+# ---------------- HTTP Session (Keep-Alive) ----------------
+if "http_session" not in st.session_state:
+    session = requests.Session()
+
+    adapter = requests.adapters.HTTPAdapter(
+        pool_connections=1,
+        pool_maxsize=1,
+        max_retries=3,
+    )
+
+    session.mount("http://", adapter)
+    st.session_state.http_session = session
+
+
 # IP 변경 시 초기화
 if st.session_state.last_ip != ip:
     st.session_state.page_no = 0
@@ -120,7 +136,7 @@ status_container = st.empty()
 with status_container:
     with st.spinner("Refreshing logs..."):
         try:
-            res = requests.get(API_URL, params=BASE_PARAMS, timeout=3)
+            res = st.session_state.http_session.get(API_URL, params=BASE_PARAMS, timeout=(2, 5))
             data = res.json()["data"]
             logs = data["logList"]
             total_count = data["logTotalCount"]
